@@ -157,17 +157,45 @@ def table_cpu_per_sample(model, X, y, model_kind='sklearn', threshold=0.5, inter
         cpu = psutil.cpu_percent(interval=interval)
 
         x_sample = X.iloc[i:i+1] if hasattr(X, 'iloc') else X[i:i+1]
-        # assign sequential IDs (1..n) as requested
-        sample_id = i + 1
+        # use numpy arrays for sklearn/keras to avoid warnings about feature names
+        x_sample_np = x_sample.values if hasattr(x_sample, 'values') else x_sample
+        # assign IDs: prefer provided id_series (original dataset ids) if present
+        if id_series is not None:
+            try:
+                # support pandas Series or list-like
+                sample_id = id_series[i]
+            except Exception:
+                sample_id = i + 1
+        else:
+            # fallback sequential IDs (1..n)
+            sample_id = i + 1
 
         if model_kind == 'sklearn':
             try:
-                prob = model.predict_proba(x_sample)[:, 1][0]
+                proba_arr = model.predict_proba(x_sample_np)
+                # handle single-column proba outputs
+                if proba_arr.ndim == 1:
+                    proba_arr = proba_arr.reshape(-1, 1)
+                if proba_arr.shape[1] == 1:
+                    # if the model was trained on a single class, infer which class it is
+                    classes = getattr(model, 'classes_', None)
+                    if classes is not None and 1 in list(classes):
+                        prob = float(proba_arr[:, 0][0])
+                    else:
+                        prob = float(0.0)
+                else:
+                    # try to select column for class '1'
+                    classes = list(getattr(model, 'classes_', []))
+                    if 1 in classes:
+                        idx1 = classes.index(1)
+                        prob = float(proba_arr[:, idx1][0])
+                    else:
+                        prob = float(proba_arr[:, -1][0])
             except Exception:
-                prob = float(model.predict(x_sample)[0])
+                prob = float(model.predict(x_sample_np)[0])
         else:
             # keras model expects 3D input for our CNN-BiLSTM
-            x_in = x_sample.values.reshape(-1, x_sample.shape[1], 1)
+            x_in = x_sample_np.reshape(-1, x_sample.shape[1], 1)
             prob = float(model.predict(x_in).flatten()[0])
 
         pred_label = 1 if prob >= threshold else 0

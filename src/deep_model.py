@@ -76,7 +76,7 @@ class CPUPerEpochCallback(callbacks.Callback):
             self.epoch_metrics.append(metrics)
 
 
-def train_model(model, X_train, y_train, X_val, y_val, epochs=3, batch_size=32, patience=10):
+def train_model(model, X_train, y_train, X_val, y_val, epochs=10, batch_size=32, patience=10):
     early_stop = callbacks.EarlyStopping(monitor='val_loss', patience=patience, restore_best_weights=True)
     cpu_cb = CPUPerEpochCallback(X_val=X_val, y_val=y_val, sample_interval=0.02, samples=5)
     history = model.fit(

@@ -19,11 +19,24 @@ def train_random_forest(X, y):
     return clf
 
 def evaluate_model(clf, X, y):
-    y_pred = clf.predict(X)
+    # Ensure we pass numpy arrays to sklearn to avoid feature-name warnings
+    try:
+        X_in = X.values if hasattr(X, 'values') else X
+    except Exception:
+        X_in = X
+
+    y_pred = clf.predict(X_in)
+    # For roc_auc, prefer probability estimates when available
+    try:
+        y_score = clf.predict_proba(X_in)[:, 1]
+    except Exception:
+        # fallback to label predictions
+        y_score = y_pred
+
     return {
         'accuracy': accuracy_score(y, y_pred),
-        'precision': precision_score(y, y_pred),
-        'recall': recall_score(y, y_pred),
-        'f1': f1_score(y, y_pred),
-        'roc_auc': roc_auc_score(y, y_pred)
+        'precision': precision_score(y, y_pred, zero_division=0),
+        'recall': recall_score(y, y_pred, zero_division=0),
+        'f1': f1_score(y, y_pred, zero_division=0),
+        'roc_auc': roc_auc_score(y, y_score) if len(set(y)) > 1 else float('nan')
     }
